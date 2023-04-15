@@ -7,6 +7,7 @@ use actix_web::{
 };
 
 use actix_web_httpauth::extractors::AuthenticationError;
+use paperclip::actix::api_v2_errors;
 // use s3::{creds::error::CredentialsError, error::S3Error};
 // use alcoholic_jwt::ValidationError;
 use serde::{Deserialize, Serialize};
@@ -26,6 +27,11 @@ pub enum CustomErrorType {
 }
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
+#[api_v2_errors(
+    code=400,
+    code=401, description="Unauthorized: Invalid Bearer Token provided",
+    code=500,
+)]
 pub struct CustomError {
     pub message: Option<String>,
     pub err_type: CustomErrorType,
