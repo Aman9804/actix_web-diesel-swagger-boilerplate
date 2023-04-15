@@ -1,0 +1,27 @@
+[package]
+name = "actix_web-diesel-swagger-boilerplate"
+version = "0.1.0"
+edition = "2021"
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[dependencies]
+actix-web = "^4"
+actix-web-httpauth = "0.8.0"
+serde = { version = "^1", features = ["derive"] }
+env_logger = "0.10.0"
+log = "^0.4"
+derive_more = "^0.99"
+uuid = { version = "1.2.2", features = ["serde", "v4"] }
+chrono = { version = "0.4", features = ["serde"] }
+diesel = { version = "2.0.3", features = ["postgres", "r2d2", "uuid", "chrono"] }
+diesel_migrations = "2.0.0"
+lazy_static = "1.4"
+r2d2 = "0.8"
+jsonwebtoken = "8"
+dotenv = "0.15.0"
+reqwest = { version = "0.11", features = ["json"] }
+serde_json = "1.0.92"
+enclose = "1.1.8"
+actix-easy-multipart = "3.0.0"
+md5 = "0.7.0"
