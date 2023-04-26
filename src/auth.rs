@@ -1,4 +1,8 @@
 
+use std::{pin::Pin, future::Future};
+
+use actix_web::{FromRequest, HttpRequest, dev::Payload};
+use paperclip::actix::{ Apiv2Security};
 use serde::{Serialize, Deserialize};
 use jsonwebtoken::{encode, decode, Header, Algorithm, Validation, EncodingKey, DecodingKey};
 use uuid::Uuid;
@@ -13,7 +17,38 @@ struct Claims {
     user_id:Uuid,
     exp: usize,
 }
+#[derive(Apiv2Security)]
+#[openapi(
+  apiKey,
+  in = "header",
+  name = "Authorization",
+  description = "Use format 'Bearer TOKEN'"
+)]
+pub struct AccessToken{
+    pub token:String
+}
 
+impl FromRequest for AccessToken{
+    type Error = CustomError;
+    type Future = Pin<Box<dyn Future<Output = Result<AccessToken, CustomError>>>>;
+
+    fn from_request(req: &HttpRequest, pl: &mut Payload) -> Self::Future {
+        let token =req.headers().get("Authorization").unwrap()
+            .to_str()
+            .unwrap()
+            .to_owned();
+ 
+        Box::pin(async move {
+                let claim_future = get_token(token.clone());
+                claim_future
+        })
+    }
+}
+
+pub fn get_token(token: String) -> Result<AccessToken, CustomError>
+{
+    Ok(AccessToken{token})
+}
 pub fn validate_token(token: &str) -> Result<Uuid, CustomError> {
     //return user_id
     let key=std::env::var("SECRET")?;

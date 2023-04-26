@@ -1,11 +1,9 @@
 #[macro_use]
 extern crate diesel;
-
-use std::fs::File;
-use std::io;
+use actix_cors::Cors;
 
 use actix_web::{dev::ServiceRequest, middleware::Logger, App, HttpServer};
-use actix_web::{HttpMessage, HttpResponse};
+use actix_web::{HttpMessage};
 use actix_web_httpauth::{
     extractors::{
         bearer::{BearerAuth, Config},
@@ -13,11 +11,11 @@ use actix_web_httpauth::{
     },
     middleware::HttpAuthentication,
 };
-use diesel::{r2d2::ConnectionManager, PgConnection};
-use others::errors::CustomError;
-use r2d2::Pool;
+use diesel_async::pooled_connection::deadpool::Pool;
+use diesel_async::pooled_connection::AsyncDieselConnectionManager;
 use routes::basic::{get_user_id, welcome};
 mod auth;
+mod models;
 mod others;
 mod routes;
 mod schema;
@@ -30,8 +28,8 @@ use paperclip::actix::{
 
     // extension trait for actix_web::App and proc-macro attributes
     OpenApiExt,
-    
 };
+use routes::users::{get_all_users, get_users, update_users, delete_users, create_users};
 
 #[actix_web::main]
 async fn main() -> std::io::Result<()> {
@@ -39,26 +37,43 @@ async fn main() -> std::io::Result<()> {
     std::env::set_var("RUST_LOG", "actix_web=debug");
     env_logger::init();
     let database_url = std::env::var("DATABASE_URL").expect("DATABASE_URL must be set");
+    // let manager = ConnectionManager::<PgConnection>::new(database_url);
+    // let pool = r2d2::Pool::builder()
+    //     .build(manager)
+    //     .expect("Failed to create pool.");
 
-    let manager = ConnectionManager::<PgConnection>::new(database_url);
-    let pool = r2d2::Pool::builder()
-        .build(manager)
-        .expect("Failed to create pool.");
+    // create a new connection pool with the default config
+    let config: AsyncDieselConnectionManager<diesel_async::AsyncPgConnection> =
+        AsyncDieselConnectionManager::<diesel_async::AsyncPgConnection>::new(database_url);
+    let pool = Pool::builder(config).build().unwrap();
+
     HttpServer::new(move || {
         let auth = HttpAuthentication::bearer(validator);
 
         App::new()
+            .wrap(Cors::default()
+              .allow_any_origin()
+              .allowed_methods(vec!["GET", "POST", "PUT", "DELETE"])
+              .allowed_headers(vec![http::header::AUTHORIZATION, http::header::ACCEPT])
+              .allowed_header(http::header::CONTENT_TYPE)
+              .max_age(3600))
             .wrap_api()
             .wrap(Logger::default())
             // .wrap(auth)
             .app_data(Data::new(pool.clone()))
             .service(welcome)
+            
+            .service(get_all_users)
+            .service(get_users)
+            .service(update_users)
+            .service(delete_users)
+            .service(create_users)
+            
             .with_json_spec_at("/api/spec/v2") //open routes
             .service(
-                web::scope("").wrap(auth).service(get_user_id), //authenticated routes
+                web::scope("").wrap(auth).service(get_user_id) //authenticated routes
             )
             .build()
-            
     })
     .bind(("0.0.0.0", 5003))?
     .run()
@@ -70,7 +85,7 @@ async fn validator(
     credentials: BearerAuth,
 ) -> Result<ServiceRequest, (actix_web::Error, ServiceRequest)> {
     let db = req
-        .app_data::<actix_web::web::Data<Pool<ConnectionManager<PgConnection>>>>()
+        .app_data::<Data<Pool<diesel_async::AsyncPgConnection>>>()
         .expect("Failed to extract DatabaseConnection from ServiceRequest")
         .get_ref()
         .clone();
@@ -87,8 +102,6 @@ async fn validator(
         Err(_) => Err((AuthenticationError::from(config).into(), req)),
     }
 }
-
-
 
 // fn get_file(url: &str, save_name: &str) -> String {
 //     let resp = reqwest::blocking::get(url).expect("request failed");

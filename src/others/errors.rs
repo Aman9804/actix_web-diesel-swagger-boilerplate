@@ -7,6 +7,7 @@ use actix_web::{
 };
 
 use actix_web_httpauth::extractors::AuthenticationError;
+use diesel_async::pooled_connection::{deadpool, PoolError};
 use paperclip::actix::api_v2_errors;
 // use s3::{creds::error::CredentialsError, error::S3Error};
 // use alcoholic_jwt::ValidationError;
@@ -58,6 +59,15 @@ impl std::fmt::Display for CustomError {
 
 impl From<diesel::result::Error> for CustomError {
     fn from(err: diesel::result::Error) -> CustomError {
+        CustomError {
+            message: Some(err.to_string()),
+            err_type: CustomErrorType::DieselError,
+        }
+    }
+}
+//deadpool::managed::errors::PoolError<PoolError>
+impl From<deadpool::PoolError> for CustomError {
+    fn from(err: deadpool::PoolError) -> CustomError {
         CustomError {
             message: Some(err.to_string()),
             err_type: CustomErrorType::DieselError,

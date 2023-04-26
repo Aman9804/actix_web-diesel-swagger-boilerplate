@@ -1,8 +1,8 @@
 use actix_web::{
-    HttpResponse, Responder, HttpRequest, http::header::ContentType, body::BoxBody,
+    HttpResponse,
 };
-use diesel::{r2d2::ConnectionManager, PgConnection};
-use r2d2::Pool;
+
+use diesel_async::pooled_connection::deadpool::Pool;
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 use paperclip::actix::{
@@ -12,10 +12,10 @@ use paperclip::actix::{
     // get, post, put, delete
     // use this instead of actix_web::web
     web::{self,ReqData,Json},
-    get, Apiv2Header
+    get
 };
 
-use crate::{auth::generate_token, others::errors::CustomError};
+use crate::{auth::{generate_token, AccessToken}, others::errors::CustomError};
 
 #[derive(Serialize, Debug, Deserialize,Apiv2Schema)]
 pub struct Welcome {
@@ -47,7 +47,7 @@ pub struct User{
 #[api_v2_operation]
 #[get("/")]
 pub async fn welcome(
-    db: web::Data<Pool<ConnectionManager<PgConnection>>>,
+    db: web::Data<Pool<diesel_async::AsyncPgConnection>>
 ) -> Result<Json<Welcome>, CustomError> {
     let user_id = uuid::Uuid::new_v4();
     Ok(Json(Welcome {
@@ -63,7 +63,8 @@ pub async fn welcome(
 #[api_v2_operation]
 #[get("/check-token")]
 pub async fn get_user_id(
-    db: web::Data<Pool<ConnectionManager<PgConnection>>>,
+    _a:AccessToken,
+    db:web::Data<Pool<diesel_async::AsyncPgConnection>>,
     uid: Option<ReqData<Uuid>>,
 ) -> Result<HttpResponse, CustomError> {
     let u = uid.ok_or("failed to fetch userId from access token".to_owned())?;
