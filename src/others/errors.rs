@@ -99,14 +99,14 @@ impl From<String> for CustomError {
         }
     }
 }
-// impl From<&str> for CustomError {
-//     fn from(err: &str) -> CustomError {
-//         CustomError {
-//             message: Some(err.to_string()),
-//             err_type: CustomErrorType::UserError,
-//         }
-//     }
-// }
+impl From<&str> for CustomError {
+    fn from(err: &str) -> CustomError {
+        CustomError {
+            message: Some(err.to_string()),
+            err_type: CustomErrorType::UserError,
+        }
+    }
+}
 impl From<chrono::ParseError> for CustomError {
     fn from(err: chrono::ParseError) -> CustomError {
         CustomError {
@@ -126,6 +126,15 @@ impl From<uuid::Error> for CustomError {
 }
 impl From<reqwest::Error> for CustomError {
     fn from(err: reqwest::Error) -> CustomError {
+        CustomError {
+            message: Some(err.to_string()),
+            err_type: CustomErrorType::UserError,
+        }
+    }
+}
+//serde_json::Error
+impl From<serde_json::Error> for CustomError {
+    fn from(err: serde_json::Error) -> CustomError {
         CustomError {
             message: Some(err.to_string()),
             err_type: CustomErrorType::UserError,

@@ -15,13 +15,12 @@ use paperclip::actix::{
     get
 };
 
-use crate::{auth::{generate_token, AccessToken}, others::errors::CustomError};
+use crate::{auth::{ AccessToken}, others::errors::CustomError};
 
 #[derive(Serialize, Debug, Deserialize,Apiv2Schema)]
 pub struct Welcome {
     pub status: bool,
     pub message: String,
-    pub token: String,
 }
 // impl Responder for Welcome {
 //     type Body = BoxBody;
@@ -36,15 +35,10 @@ pub struct Welcome {
 //     }
 // }
 
-#[derive(Serialize, Debug, Deserialize,Apiv2Schema)]
-pub struct User{
-    pub status:bool,
-    pub message:String,
-    pub user_id:Uuid,
-}
-
-///This api will welcome you and give you an access token to be used in other api calls
-#[api_v2_operation]
+#[api_v2_operation(
+    summary = "This api will welcome you",
+    tags("Open Routes")
+)]
 #[get("/")]
 pub async fn welcome(
     db: web::Data<Pool<diesel_async::AsyncPgConnection>>
@@ -52,22 +46,6 @@ pub async fn welcome(
     let user_id = uuid::Uuid::new_v4();
     Ok(Json(Welcome {
         status: true,
-        message: "Welcome to the application".to_owned(),
-        token: generate_token(user_id)?,
+        message: "Welcome to the Booking system API".to_owned(),
     }))
-}
-
-
-
-
-#[api_v2_operation]
-#[get("/check-token")]
-pub async fn get_user_id(
-    _a:AccessToken,
-    db:web::Data<Pool<diesel_async::AsyncPgConnection>>,
-    uid: Option<ReqData<Uuid>>,
-) -> Result<HttpResponse, CustomError> {
-    let u = uid.ok_or("failed to fetch userId from access token".to_owned())?;
-    let user_id=u.into_inner();
-    Ok(HttpResponse::Ok().json(User{status:true,message:"Token Authenticated successfully".to_owned(),user_id}))
 }

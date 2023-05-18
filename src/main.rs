@@ -1,9 +1,11 @@
 #[macro_use]
 extern crate diesel;
+use std::collections::BTreeMap;
+
 use actix_cors::Cors;
 
+use actix_web::HttpMessage;
 use actix_web::{dev::ServiceRequest, middleware::Logger, App, HttpServer};
-use actix_web::{HttpMessage};
 use actix_web_httpauth::{
     extractors::{
         bearer::{BearerAuth, Config},
@@ -13,13 +15,14 @@ use actix_web_httpauth::{
 };
 use diesel_async::pooled_connection::deadpool::Pool;
 use diesel_async::pooled_connection::AsyncDieselConnectionManager;
-use routes::basic::{get_user_id, welcome};
+use paperclip::v2::models::{DefaultApiRaw, Info};
+use routes::basic::welcome;
 mod auth;
+mod constants;
 mod models;
 mod others;
 mod routes;
 mod schema;
-
 use paperclip::actix::{
     // If you prefer the macro syntax for defining routes, import the paperclip macros
     // get, post, put, delete
@@ -29,18 +32,21 @@ use paperclip::actix::{
     // extension trait for actix_web::App and proc-macro attributes
     OpenApiExt,
 };
-use routes::users::{get_all_users, get_users, update_users, delete_users, create_users};
-
+use routes::booking_settings::*;
+use routes::bookings::*;
+use routes::checkins::*;
+use routes::organisations::*;
+use routes::plan_modules::*;
+use routes::slots::*;
+use routes::subscriptions::*;
+use routes::users::*;
+use serde_json::{json, Value};
 #[actix_web::main]
 async fn main() -> std::io::Result<()> {
     dotenv::dotenv().ok();
     std::env::set_var("RUST_LOG", "actix_web=debug");
     env_logger::init();
     let database_url = std::env::var("DATABASE_URL").expect("DATABASE_URL must be set");
-    // let manager = ConnectionManager::<PgConnection>::new(database_url);
-    // let pool = r2d2::Pool::builder()
-    //     .build(manager)
-    //     .expect("Failed to create pool.");
 
     // create a new connection pool with the default config
     let config: AsyncDieselConnectionManager<diesel_async::AsyncPgConnection> =
@@ -50,28 +56,48 @@ async fn main() -> std::io::Result<()> {
     HttpServer::new(move || {
         let auth = HttpAuthentication::bearer(validator);
 
+        let admin_auth = HttpAuthentication::bearer(validator_admin);
+
+        let mut spec = DefaultApiRaw::default();
+        spec.base_path = Some("https://bookings.xynes.com/api".into());
+        spec.info = Info {
+            version: "0.1".into(),
+            title: "Booking System".into(),
+            ..Default::default()
+        };
+        let mut ext: BTreeMap<String, Value> = BTreeMap::new();
+        ext.insert(
+            "x-samples-languages".into(),
+            json!(["curl", "python", "go"]),
+        );
+        spec.extensions = ext;
+
         App::new()
-            .wrap(Cors::default()
-              .allow_any_origin()
-              .allowed_methods(vec!["GET", "POST", "PUT", "DELETE"])
-              .allowed_headers(vec![http::header::AUTHORIZATION, http::header::ACCEPT])
-              .allowed_header(http::header::CONTENT_TYPE)
-              .max_age(3600))
-            .wrap_api()
             .wrap(Logger::default())
+            .wrap_api_with_spec(spec)
             // .wrap(auth)
+            .wrap(
+                Cors::default()
+                    .allow_any_origin()
+                    .allowed_methods(vec!["GET", "POST", "PUT", "DELETE"])
+                    .allowed_headers(vec![http::header::AUTHORIZATION, http::header::ACCEPT])
+                    .allowed_header(http::header::CONTENT_TYPE)
+                    .max_age(3600),
+            )
             .app_data(Data::new(pool.clone()))
+            .with_json_spec_v3_at("/spec/561cc460-4fe6-4026-8470-6aae680086ca")
+            //open routes
             .service(welcome)
-            
-            .service(get_all_users)
-            .service(get_users)
-            .service(update_users)
-            .service(delete_users)
-            .service(create_users)
-            
-            .with_json_spec_at("/api/spec/v2") //open routes
+            .service(organisations_login)
             .service(
-                web::scope("").wrap(auth).service(get_user_id) //authenticated routes
+                web::scope("/admin")
+                    .wrap(admin_auth)
+                    ,
+            )
+            .service(
+                web::scope("/organisations")
+                    .wrap(auth)
+                    
             )
             .build()
     })
@@ -103,10 +129,25 @@ async fn validator(
     }
 }
 
-// fn get_file(url: &str, save_name: &str) -> String {
-//     let resp = reqwest::blocking::get(url).expect("request failed");
-//     let body = resp.text().expect("body invalid");
-//     let mut out = File::create(save_name).expect("failed to create file");
-//     io::copy(&mut body.as_bytes(), &mut out).expect("failed to copy content");
-//     save_name.to_owned()
-// }
+async fn validator_admin(
+    req: ServiceRequest,
+    credentials: BearerAuth,
+) -> Result<ServiceRequest, (actix_web::Error, ServiceRequest)> {
+    let db = req
+        .app_data::<Data<Pool<diesel_async::AsyncPgConnection>>>()
+        .expect("Failed to extract DatabaseConnection from ServiceRequest")
+        .get_ref()
+        .clone();
+    let config = req
+        .app_data::<Config>()
+        .map(|data| data.clone())
+        .unwrap_or_else(Default::default);
+
+    match auth::validate_admin_token(credentials.token()) {
+        Ok(user_id) => {
+            req.extensions_mut().insert(user_id);
+            Ok(req)
+        }
+        Err(_) => Err((AuthenticationError::from(config).into(), req)),
+    }
+}

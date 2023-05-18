@@ -1,11 +1,9 @@
 [package]
-name = "booking-system"
+name = "actix_web-diesel-swagger-boilerplate"
 version = "0.1.0"
 edition = "2021"
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
-[workspace]
-members = [".", "xynes"]
 
 [dependencies]
 actix-web = "^4"
@@ -28,6 +26,7 @@ serde_json = "1.0.92"
 enclose = "1.1.8"
 actix-easy-multipart = "3.0.0"
 md5 = "0.7.0"
-paperclip = { version = "0.8", features = ["actix4","uuid","chrono"] }
+paperclip = { version = "0.8", features = ["actix4","uuid","chrono","v3"] }
 actix-cors = "0.6.4"
 http = "0.2.9"
+regex = "1.8.1"
