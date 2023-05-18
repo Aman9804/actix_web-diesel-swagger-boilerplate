@@ -32,14 +32,7 @@ use paperclip::actix::{
     // extension trait for actix_web::App and proc-macro attributes
     OpenApiExt,
 };
-use routes::booking_settings::*;
-use routes::bookings::*;
-use routes::checkins::*;
-use routes::organisations::*;
-use routes::plan_modules::*;
-use routes::slots::*;
-use routes::subscriptions::*;
-use routes::users::*;
+
 use serde_json::{json, Value};
 #[actix_web::main]
 async fn main() -> std::io::Result<()> {
@@ -88,7 +81,6 @@ async fn main() -> std::io::Result<()> {
             .with_json_spec_v3_at("/spec/561cc460-4fe6-4026-8470-6aae680086ca")
             //open routes
             .service(welcome)
-            .service(organisations_login)
             .service(
                 web::scope("/admin")
                     .wrap(admin_auth)
