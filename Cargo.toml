@@ -27,7 +27,7 @@ enclose = "1.1.8"
 actix-easy-multipart = "3.0.0"
 md5 = "0.7.0"
 paperclip = { version = "0.8", features = ["actix4","uuid","chrono","v3"] }
-actix-cors = "0.6.4"
+actix-cors = "0.6.5"
 http = "1.0.0"
 regex = "1.8.1"
 
