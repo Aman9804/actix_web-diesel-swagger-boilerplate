@@ -3,7 +3,7 @@ extern crate diesel;
 use std::collections::BTreeMap;
 
 use actix_cors::Cors;
-
+use actix_governor::{Governor, GovernorConfigBuilder};
 use actix_web::HttpMessage;
 use actix_web::{dev::ServiceRequest, middleware::Logger, App, HttpServer};
 use actix_web_httpauth::{
@@ -13,6 +13,7 @@ use actix_web_httpauth::{
     },
     middleware::HttpAuthentication,
 };
+use constants::{BURST_SIZE, PER_SECOND};
 use diesel_async::pooled_connection::deadpool::Pool;
 use diesel_async::pooled_connection::AsyncDieselConnectionManager;
 use paperclip::v2::models::{DefaultApiRaw, Info};
@@ -50,7 +51,11 @@ async fn main() -> std::io::Result<()> {
         let auth = HttpAuthentication::bearer(validator);
 
         let admin_auth = HttpAuthentication::bearer(validator_admin);
-
+        let governor_conf = GovernorConfigBuilder::default()
+            .per_second(PER_SECOND)
+            .burst_size(BURST_SIZE)
+            .finish()
+            .unwrap();
         let mut spec = DefaultApiRaw::default();
         spec.base_path = Some("https://bookings.xynes.com/api".into());
         spec.info = Info {
@@ -68,13 +73,13 @@ async fn main() -> std::io::Result<()> {
         App::new()
             .wrap(Logger::default())
             .wrap_api_with_spec(spec)
-            // .wrap(auth)
+            .wrap(Governor::new(&governor_conf))
             .wrap(
                 Cors::default()
                     .allow_any_origin()
                     .allowed_methods(vec!["GET", "POST", "PUT", "DELETE"])
-                    .allowed_headers(vec![http::header::AUTHORIZATION, http::header::ACCEPT])
-                    .allowed_header(http::header::CONTENT_TYPE)
+                    .allowed_headers(vec![actix_web::http::header::AUTHORIZATION, actix_web::http::header::ACCEPT])
+                    .allowed_header(actix_web::http::header::CONTENT_TYPE)
                     .max_age(3600),
             )
             .app_data(Data::new(pool.clone()))
