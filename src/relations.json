@@ -1,0 +1,10 @@
+{
+    "one2many": {
+        "users": [
+            "articles"
+        ]
+    },
+    "one2one":{
+        "articles":["article_datas"]
+    }
+}
