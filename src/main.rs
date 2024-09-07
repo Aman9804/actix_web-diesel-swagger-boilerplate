@@ -4,7 +4,8 @@ use std::collections::BTreeMap;
 
 use actix_cors::Cors;
 use actix_governor::{Governor, GovernorConfigBuilder};
-use actix_web::HttpMessage;
+use actix_web::middleware::{ErrorHandlerResponse, ErrorHandlers};
+use actix_web::{dev, Error, HttpMessage, HttpResponse};
 use actix_web::{dev::ServiceRequest, middleware::Logger, App, HttpServer};
 use actix_web_httpauth::{
     extractors::{
@@ -35,6 +36,51 @@ use paperclip::actix::{
 };
 
 use serde_json::{json, Value};
+
+// Function to handle Unauthorized Error (401)
+fn render_401<B>(mut res: dev::ServiceResponse<B>) -> Result<ErrorHandlerResponse<B>, Error> {
+    let error_response = json!({ "status": false, "message": "Unauthorized" });
+    let new_response = HttpResponse::Unauthorized()
+        .content_type("application/json")
+        .body(error_response.to_string());
+    // Convert the new response body into the appropriate type using `map_into_left_body`
+    let (req, _res) = res.into_parts();
+    let new_res = new_response.map_into_right_body::<B>();
+
+    let new_service_response = dev::ServiceResponse::new(req, new_res);
+    Ok(ErrorHandlerResponse::Response(new_service_response))
+}
+
+// Function to handle Unauthorized Error (400)
+fn render_400<B>(mut res: dev::ServiceResponse<B>) -> Result<ErrorHandlerResponse<B>, Error> {
+    let error_response = json!({ "status": false, "message": "Endpoint not found" });
+    let new_response = HttpResponse::NotFound()
+        .content_type("application/json")
+        .body(error_response.to_string());
+    // Convert the new response body into the appropriate type using `map_into_left_body`
+    let (req, _res) = res.into_parts();
+    let new_res = new_response.map_into_right_body::<B>();
+
+    let new_service_response = dev::ServiceResponse::new(req, new_res);
+    Ok(ErrorHandlerResponse::Response(new_service_response))
+}
+
+// Function to handle JSON Parse Error
+fn render_json_parse_error<B>(
+    mut res: dev::ServiceResponse<B>,
+) -> Result<ErrorHandlerResponse<B>, Error> {
+    let error_response = json!({ "status": false, "message": "Failed to prase JSON" });
+    let new_response = HttpResponse::UnprocessableEntity()
+        .content_type("application/json")
+        .body(error_response.to_string());
+    // Convert the new response body into the appropriate type using `map_into_left_body`
+    let (req, _res) = res.into_parts();
+    let new_res = new_response.map_into_right_body::<B>();
+
+    let new_service_response = dev::ServiceResponse::new(req, new_res);
+    Ok(ErrorHandlerResponse::Response(new_service_response))
+}
+
 #[actix_web::main]
 async fn main() -> std::io::Result<()> {
     dotenv::dotenv().ok();
@@ -78,24 +124,28 @@ async fn main() -> std::io::Result<()> {
                 Cors::default()
                     .allow_any_origin()
                     .allowed_methods(vec!["GET", "POST", "PUT", "DELETE"])
-                    .allowed_headers(vec![actix_web::http::header::AUTHORIZATION, actix_web::http::header::ACCEPT])
+                    .allowed_headers(vec![
+                        actix_web::http::header::AUTHORIZATION,
+                        actix_web::http::header::ACCEPT,
+                    ])
                     .allowed_header(actix_web::http::header::CONTENT_TYPE)
                     .max_age(3600),
+            )
+            .wrap(
+                ErrorHandlers::new()
+                    .handler(actix_web::http::StatusCode::UNAUTHORIZED, render_401)
+                    .handler(actix_web::http::StatusCode::NOT_FOUND, render_400)
+                    .handler(
+                        actix_web::http::StatusCode::BAD_REQUEST,
+                        render_json_parse_error,
+                    ), // Handle JSON parse error as Bad Request
             )
             .app_data(Data::new(pool.clone()))
             .with_json_spec_v3_at("/spec/561cc460-4fe6-4026-8470-6aae680086ca")
             //open routes
             .service(welcome)
-            .service(
-                web::scope("/admin")
-                    .wrap(admin_auth)
-                    ,
-            )
-            .service(
-                web::scope("/organisations")
-                    .wrap(auth)
-                    
-            )
+            .service(web::scope("/admin").wrap(admin_auth))
+            .service(web::scope("/organisations").wrap(auth))
             .build()
     })
     .bind(("0.0.0.0", 5003))?
