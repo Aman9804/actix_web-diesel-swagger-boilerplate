@@ -25,9 +25,9 @@ serde_json = "1.0.128"
 enclose = "1.1.8"
 actix-easy-multipart = "3.0.0"
 md5 = "0.7.0"
-paperclip = { version = "0.8", features = ["actix4","uuid","chrono","v3"] }
+paperclip = { version = "0.9.1", features = ["actix4","uuid","chrono","v3"] }
 actix-cors = "0.7.0"
 http = "1.1.0"
 regex = "1.10.6"
-actix-governor = "0.5.0"
+actix-governor = "0.6.0"
 
